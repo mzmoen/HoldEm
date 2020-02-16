@@ -33,7 +33,7 @@ class PokerHand:
         self.active_players = copy.copy(active_players)
         self.players_to_take_action = []
         self.action_history = []
-        self.deck = Deck()
+        self.deck = deuces.Deck()
         self.pot = [0]
         self.table = table
         self.current_round_bet_size = 0
@@ -42,7 +42,7 @@ class PokerHand:
     def betting_round(self):
         while len(self.players_to_take_action) > 0 and len(self.active_players) > 1:
             x = self.players_to_take_action[0]
-            print(x.cards, x)
+            print(deuces.Card.print_pretty_cards(x.cards), x)
             player_input = str.strip(input('What would you like to do? 1 for checking, 2 for betting, 3 for folding'))
             if player_input == '1':
                 if self.current_round_bet_size == x.current_round_bet or x.chip_count == 0:
@@ -61,7 +61,7 @@ class PokerHand:
                     self.pot[0] += player_bet
                     if x.current_round_bet != self.current_round_bet_size:
                         self.current_round_bet_size = x.current_round_bet
-                        self.update_active_players_list(x.table_position)
+                        self.update_active_players_list(self.active_players.index(x))
                         self.players_to_take_action.pop(self.players_to_take_action.index(x))
                     else:
                         self.players_to_take_action.pop(0)
@@ -70,7 +70,7 @@ class PokerHand:
                 self.active_players.pop(self.active_players.index(x))
                 self.players_to_take_action.pop(0)
 
-    def update_active_players_list(self, player_position):
+    def update_active_players_list(self, player_position, card_deal=False):
         ordered_list = []
         for x in self.active_players[player_position:]:
             if not (x.knocked_out or len(x.cards) == 0):
@@ -78,6 +78,8 @@ class PokerHand:
         for x in self.active_players[:player_position]:
             if not (x.knocked_out or len(x.cards) == 0):
                 ordered_list.append(x)
+        if card_deal and ordered_list[0].table_position == self.table.button_position:
+            ordered_list.append(ordered_list.pop(0))
         self.players_to_take_action = ordered_list
 
     def collect_blinds(self):
@@ -91,10 +93,14 @@ class PokerHand:
         self.deck.shuffle()
         for x in range(2):
             for y in self.active_players:
-                y.cards.append(self.deck.deal_top_card())
+                y.cards.append(self.deck.draw())
 
-    def end_hand(self, winner):
-        winner.chip_count += self.pot[0]
+    def end_hand(self, winner, num_winners=1):
+        if num_winners == 1:
+            winner.chip_count += self.pot[0]
+        else:
+            for x in winner:
+                x.chip_count += self.pot[0]/num_winners
         for x in self.table.player_array:
             if x.chip_count == 0:
                 x.knocked_out = True
@@ -189,46 +195,54 @@ def main():
         poker_round.betting_round()
 
         # Check how many players are in the hand. If only 1, then give money to remaining player. Else, go to the flop
-        if len(poker_round.players_to_take_action) == 1:
-            poker_round.end_hand(poker_round.players_to_take_action[0])
+        if len(poker_round.active_players) == 1:
+            poker_round.end_hand(poker_round.active_players[0])
 
         else:
-            poker_round.deck.burn_top_card()
-            for x in range(3):
-                poker_round.community_cards.append(poker_round.deck.deal_top_card())
-            print(f'The flop is: {poker_round.community_cards}')
-            poker_round.update_active_players_list(poker_round.table.button_position - 1)
+            poker_round.community_cards.extend(poker_round.deck.draw(3))
+            print(f'The flop is: {deuces.Card.print_pretty_cards(poker_round.community_cards)}')
+            poker_round.update_active_players_list(poker_round.table.button_position - 1, True)
             poker_round.betting_round()
 
             # Check how many players are in the hand. If only 1, then give money to remaining player. Else, go to the turn
-            if len(poker_round.players_to_take_action) == 1:
-                poker_round.end_hand(poker_round.players_to_take_action[0])
+            if len(poker_round.active_players) == 1:
+                poker_round.end_hand(poker_round.active_players[0])
 
             else:
-                poker_round.deck.burn_top_card()
-                poker_round.community_cards.append(poker_round.deck.deal_top_card())
-                print(f'The turn is: {poker_round.community_cards}')
-                poker_round.update_active_players_list(poker_round.table.button_position - 1)
+                poker_round.community_cards.append(poker_round.deck.draw())
+                print(f'The turn is: {deuces.Card.print_pretty_cards(poker_round.community_cards)}')
+                poker_round.update_active_players_list(poker_round.table.button_position - 1, True)
                 poker_round.betting_round()
 
                 # Check how many players are in the hand. If only 1, then give money to remaining player. Else, go to river
-                if len(poker_round.players_to_take_action) == 1:
-                    poker_round.end_hand(poker_round.players_to_take_action[0])
+                if len(poker_round.active_players) == 1:
+                    poker_round.end_hand(poker_round.active_players[0])
 
                 else:
-                    poker_round.deck.burn_top_card()
-                    poker_round.community_cards.append(poker_round.deck.deal_top_card())
-                    print(f'The river is: {poker_round.community_cards}')
-                    poker_round.update_active_players_list(poker_round.table.button_position - 1)
+                    poker_round.community_cards.append(poker_round.deck.draw())
+                    print(f'The river is: {deuces.Card.print_pretty_cards(poker_round.community_cards)}')
+                    poker_round.update_active_players_list(poker_round.table.button_position - 1, True)
                     poker_round.betting_round()
 
-                    if len(poker_round.players_to_take_action) == 1:
-                        poker_round.end_hand(poker_round.players_to_take_action[0])
+                    if len(poker_round.active_players) == 1:
+                        poker_round.end_hand(poker_round.active_players[0])
 
                     else:
                         # determine who wins the hand
-
-                        poker_round.end_hand(poker_round.active_players[0]) # TODO: calc who should win based on hand and replace thiw
+                        evaluator = deuces.Evaluator()
+                        poker_round.update_active_players_list(poker_round.table.button_position - 1, True)
+                        tracker = [[0], 100000] # max score is 7462
+                        for x in poker_round.players_to_take_action:
+                            player_score = evaluator.evaluate(x.cards, poker_round.community_cards)
+                            if player_score < tracker[1]:
+                                tracker[0] = x
+                                tracker[1] = player_score
+                            elif player_score == tracker[1]:
+                                tracker[0].append(x)
+                        if isinstance(tracker[0], Player):
+                            poker_round.end_hand(tracker[0])
+                        else:
+                            poker_round.end_hand(tracker[0], len(tracker[0]))
                         print('END of round')
 
 if __name__ == "__main__":
